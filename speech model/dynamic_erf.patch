@@ -1,0 +1,112 @@
+diff --git a/examples/wav2vec/config/pretraining/wav2vec2_base_librispeech.yaml b/examples/wav2vec/config/pretraining/wav2vec2_base_librispeech.yaml
+index b686e21ab..643d9538d 100644
+--- a/examples/wav2vec/config/pretraining/wav2vec2_base_librispeech.yaml
++++ b/examples/wav2vec/config/pretraining/wav2vec2_base_librispeech.yaml
+@@ -1,7 +1,7 @@
+ # @package _group_
+ 
+ common:
+-  fp16: true
++  fp16: false
+   log_format: json
+   log_interval: 200
+ 
+@@ -55,3 +55,5 @@ model:
+   dropout_features: 0.1
+   feature_grad_mult: 0.1
+   encoder_embed_dim: 768
++
++  layer_norm_first: true
+\ No newline at end of file
+diff --git a/fairseq/models/wav2vec/wav2vec2.py b/fairseq/models/wav2vec/wav2vec2.py
+index 0faba77f8..53634b2c5 100644
+--- a/fairseq/models/wav2vec/wav2vec2.py
++++ b/fairseq/models/wav2vec/wav2vec2.py
+@@ -305,6 +305,46 @@ class Wav2Vec2Config(FairseqDataclass):
+     )
+ 
+ 
++class DynamicTanh(nn.Module):
++    def __init__(self, normalized_shape, alpha_init_value=0.5):
++        super().__init__()
++        self.normalized_shape = normalized_shape
++        self.alpha_init_value = alpha_init_value
++
++        self.alpha = nn.Parameter(torch.ones(1) * alpha_init_value)
++        self.weight = nn.Parameter(torch.ones(normalized_shape))
++        self.bias = nn.Parameter(torch.zeros(normalized_shape))
++
++    def forward(self, x):
++        x = torch.tanh(self.alpha * x)
++        x = x * self.weight + self.bias
++        return x
++
++    def extra_repr(self):
++        return f"normalized_shape={self.normalized_shape}, alpha_init_value={self.alpha_init_value}"
++
++class Dynamic_erf(nn.Module):
++    def __init__(self, normalized_shape, alpha_init_value=0.5, shift_init_value=0.0):
++        super().__init__()
++        self.normalized_shape = normalized_shape
++        self.alpha_init_value = alpha_init_value
++        self.shift_init_value = shift_init_value
++
++        self.alpha = nn.Parameter(torch.ones(1) * alpha_init_value)
++        self.shift = nn.Parameter(torch.ones(1) * shift_init_value)
++        self.weight = nn.Parameter(torch.ones(normalized_shape))
++        self.bias = nn.Parameter(torch.zeros(normalized_shape))
++
++    def forward(self, x):
++        x = torch.erf(self.alpha * x + self.shift)
++        x = x * self.weight + self.bias
++        return x
++
++    def extra_repr(self):
++        return f"normalized_shape={self.normalized_shape}, alpha_init_value={self.alpha_init_value}, shift_init_value={self.shift_init_value}"
++
++
++
+ @register_model("wav2vec2", dataclass=Wav2Vec2Config)
+ class Wav2Vec2Model(BaseFairseqModel):
+     def __init__(self, cfg: Wav2Vec2Config):
+@@ -1066,7 +1106,9 @@ class TransformerEncoder(nn.Module):
+             [self.build_encoder_layer(args, layer_idx=ii) for ii in range(encoder_layers)]
+         )
+         self.layer_norm_first = args.layer_norm_first
+-        self.layer_norm = LayerNorm(self.embedding_dim)
++        # self.layer_norm = DynamicTanh(self.embedding_dim)
++        self.layer_norm = Dynamic_erf(self.embedding_dim)
++        # self.layer_norm = LayerNorm(self.embedding_dim)
+         self.layerdrop = args.encoder_layerdrop
+ 
+         self.apply(init_bert_params)
+@@ -1217,7 +1259,9 @@ class ConformerEncoder(TransformerEncoder):
+             [self.build_encoder_layer(args) for _ in range(args.encoder_layers)]
+         )
+         self.layer_norm_first = args.layer_norm_first
+-        self.layer_norm = LayerNorm(self.embedding_dim)
++        # self.layer_norm = DynamicTanh(self.embedding_dim)
++        self.layer_norm = Dynamic_erf(self.embedding_dim)
++        # self.layer_norm = LayerNorm(self.embedding_dim)
+         self.layerdrop = args.encoder_layerdrop
+ 
+         self.apply(init_bert_params)
+@@ -1305,12 +1349,16 @@ class TransformerSentenceEncoderLayer(nn.Module):
+         self.layer_norm_first = layer_norm_first
+ 
+         # layer norm associated with the self attention layer
+-        self.self_attn_layer_norm = LayerNorm(self.embedding_dim)
++        # self.self_attn_layer_norm = DynamicTanh(self.embedding_dim)
++        self.self_attn_layer_norm = Dynamic_erf(self.embedding_dim)
++        # self.self_attn_layer_norm = LayerNorm(self.embedding_dim)
+         self.fc1 = nn.Linear(self.embedding_dim, ffn_embedding_dim)
+         self.fc2 = nn.Linear(ffn_embedding_dim, self.embedding_dim)
+ 
+         # layer norm associated with the position wise feed-forward NN
+-        self.final_layer_norm = LayerNorm(self.embedding_dim)
++        # self.final_layer_norm = DynamicTanh(self.embedding_dim)
++        self.final_layer_norm = Dynamic_erf(self.embedding_dim)
++        # self.final_layer_norm = LayerNorm(self.embedding_dim)
+ 
+     def forward(
+         self,

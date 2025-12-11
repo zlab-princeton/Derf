@@ -1,0 +1,132 @@
+diff --git a/model.py b/model.py
+index c698f8b..50efd89 100644
+--- a/model.py
++++ b/model.py
+@@ -26,6 +26,46 @@ class LayerNorm(nn.Module):
+     def forward(self, input):
+         return F.layer_norm(input, self.weight.shape, self.weight, self.bias, 1e-5)
+ 
++class Dynamic_erf(nn.Module):
++    def __init__(self, normalized_shape, alpha_init_value=0.5, shift_init_value=0.0):
++        super().__init__()
++        self.normalized_shape = normalized_shape
++        self.alpha_init_value = alpha_init_value
++        self.shift_init_value = shift_init_value
++
++        self.alpha = nn.Parameter(torch.ones(1) * alpha_init_value)
++        self.shift = nn.Parameter(torch.ones(1) * shift_init_value)
++        self.weight = nn.Parameter(torch.ones(normalized_shape))
++        self.bias = nn.Parameter(torch.zeros(normalized_shape))
++        
++    def forward(self, x):
++        if self.bias is not None:
++            return self.weight * torch.erf(self.alpha * x + self.shift) + self.bias
++        else:
++            return self.weight * torch.erf(self.alpha * x + self.shift)
++
++    def extra_repr(self):
++        return f"normalized_shape={self.normalized_shape}, alpha_init_value={self.alpha_init_value}, shift_init_value={self.shift_init_value}"
++
++class DynamicTanh(nn.Module):
++    def __init__(self, normalized_shape, alpha_init_value=0.5):
++        super().__init__()
++        self.normalized_shape = normalized_shape
++        self.alpha_init_value = alpha_init_value
++
++        self.alpha = nn.Parameter(torch.ones(1) * alpha_init_value)
++        self.weight = nn.Parameter(torch.ones(normalized_shape))
++        self.bias = nn.Parameter(torch.zeros(normalized_shape))
++        
++    def forward(self, x):
++        if self.bias is not None:
++            return self.weight * torch.tanh(self.alpha * x) + self.bias
++        else:
++            return self.weight * torch.tanh(self.alpha * x)
++
++    def extra_repr(self):
++        return f"normalized_shape={self.normalized_shape}, alpha_init_value={self.alpha_init_value}"
++
+ class CausalSelfAttention(nn.Module):
+ 
+     def __init__(self, config):
+@@ -95,9 +135,17 @@ class Block(nn.Module):
+ 
+     def __init__(self, config):
+         super().__init__()
+-        self.ln_1 = LayerNorm(config.n_embd, bias=config.bias)
++        # Create normalization layers based on norm_type with separate alpha inits
++        if config.norm_type == 'derf':
++            self.ln_1 = Dynamic_erf(config.n_embd, alpha_init_value=config.attn_alpha_init_value)
++            self.ln_2 = Dynamic_erf(config.n_embd, alpha_init_value=config.ffn_alpha_init_value)
++        elif config.norm_type == 'dyt':
++            self.ln_1 = DynamicTanh(config.n_embd, alpha_init_value=config.attn_alpha_init_value)
++            self.ln_2 = DynamicTanh(config.n_embd, alpha_init_value=config.ffn_alpha_init_value)
++        else:  
++            self.ln_1 = LayerNorm(config.n_embd, bias=config.bias)
++            self.ln_2 = LayerNorm(config.n_embd, bias=config.bias)
+         self.attn = CausalSelfAttention(config)
+-        self.ln_2 = LayerNorm(config.n_embd, bias=config.bias)
+         self.mlp = MLP(config)
+ 
+     def forward(self, x):
+@@ -114,6 +162,10 @@ class GPTConfig:
+     n_embd: int = 768
+     dropout: float = 0.0
+     bias: bool = True # True: bias in Linears and LayerNorms, like GPT-2. False: a bit better and faster
++    norm_type = 'derf' # 'dyt' for Dynamic Tanh, 'derf' for Dynamic erf, 'ln' for LayerNorm
++    attn_alpha_init_value: float = 1.0  # alpha init for attention pre-norm
++    ffn_alpha_init_value: float = 1.0   # alpha init for FFN pre-norm
++    dec_alpha_init_value: float = 1.0   # alpha init for final decoder norm
+ 
+ class GPT(nn.Module):
+ 
+@@ -123,12 +175,19 @@ class GPT(nn.Module):
+         assert config.block_size is not None
+         self.config = config
+ 
++        if config.norm_type == 'derf':
++            ln_f = Dynamic_erf(config.n_embd, alpha_init_value=config.dec_alpha_init_value)
++        elif config.norm_type == 'dyt':
++            ln_f = DynamicTanh(config.n_embd, alpha_init_value=config.dec_alpha_init_value)
++        else:  
++            ln_f = LayerNorm(config.n_embd, bias=config.bias)
++            
+         self.transformer = nn.ModuleDict(dict(
+             wte = nn.Embedding(config.vocab_size, config.n_embd),
+             wpe = nn.Embedding(config.block_size, config.n_embd),
+             drop = nn.Dropout(config.dropout),
+             h = nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+-            ln_f = LayerNorm(config.n_embd, bias=config.bias),
++            ln_f = ln_f,
+         ))
+         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
+         # with weight tying when using torch.compile() some warnings get generated:
+@@ -137,6 +196,8 @@ class GPT(nn.Module):
+         # not 100% sure what this is, so far seems to be harmless. TODO investigate
+         self.transformer.wte.weight = self.lm_head.weight # https://paperswithcode.com/method/weight-tying
+ 
++        self.shared_scale = nn.Parameter(torch.empty(1))
++        self.shared_scale_init_value = math.sqrt(config.n_embd)
+         # init all weights
+         self.apply(self._init_weights)
+         # apply special scaled init to the residual projections, per GPT-2 paper
+@@ -144,6 +205,7 @@ class GPT(nn.Module):
+             if pn.endswith('c_proj.weight'):
+                 torch.nn.init.normal_(p, mean=0.0, std=0.02/math.sqrt(2 * config.n_layer))
+ 
++        self.shared_scale.data.fill_(self.shared_scale_init_value)
+         # report number of parameters
+         print("number of parameters: %.2fM" % (self.get_num_params()/1e6,))
+ 
+@@ -176,7 +238,10 @@ class GPT(nn.Module):
+         # forward the GPT model itself
+         tok_emb = self.transformer.wte(idx) # token embeddings of shape (b, t, n_embd)
+         pos_emb = self.transformer.wpe(pos) # position embeddings of shape (t, n_embd)
+-        x = self.transformer.drop(tok_emb + pos_emb)
++        if self.config.norm_type in ('derf', 'dyt'):
++            x = self.transformer.drop((tok_emb + pos_emb) * self.shared_scale)
++        else:
++            x = self.transformer.drop(tok_emb + pos_emb)
+         for block in self.transformer.h:
+             x = block(x)
+         x = self.transformer.ln_f(x)

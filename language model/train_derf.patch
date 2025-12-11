@@ -1,0 +1,43 @@
+diff --git a/train.py b/train.py
+index de57850..9b2c161 100644
+--- a/train.py
++++ b/train.py
+@@ -54,6 +54,11 @@ n_head = 12
+ n_embd = 768
+ dropout = 0.0 # for pretraining 0 is good, for finetuning try 0.1+
+ bias = False # do we use bias inside LayerNorm and Linear layers?
++# DyT normalization settings (can be overridden via command line or config file)
++norm_type = 'derf' # 'dyt' for Dynamic Tanh, 'derf' for Dynamic erf, 'ln' for LayerNorm
++attn_alpha_init_value = 1.0 # alpha initialization for attention pre-norm
++ffn_alpha_init_value = 1.0 # alpha initialization for FFN pre-norm
++dec_alpha_init_value = 1.0 # alpha initialization for decoder final norm
+ # adamw optimizer
+ learning_rate = 6e-4 # max learning rate
+ max_iters = 600000 # total number of training iterations
+@@ -146,6 +151,14 @@ if os.path.exists(meta_path):
+ # model init
+ model_args = dict(n_layer=n_layer, n_head=n_head, n_embd=n_embd, block_size=block_size,
+                   bias=bias, vocab_size=None, dropout=dropout) # start with model_args from command line
++if 'norm_type' in globals():
++    model_args['norm_type'] = norm_type
++if 'attn_alpha_init_value' in globals():
++    model_args['attn_alpha_init_value'] = attn_alpha_init_value
++if 'ffn_alpha_init_value' in globals():
++    model_args['ffn_alpha_init_value'] = ffn_alpha_init_value
++if 'dec_alpha_init_value' in globals():
++    model_args['dec_alpha_init_value'] = dec_alpha_init_value
+ if init_from == 'scratch':
+     # init a new model from scratch
+     print("Initializing a new model from scratch")
+@@ -165,6 +178,11 @@ elif init_from == 'resume':
+     # the rest of the attributes (e.g. dropout) can stay as desired from command line
+     for k in ['n_layer', 'n_head', 'n_embd', 'block_size', 'bias', 'vocab_size']:
+         model_args[k] = checkpoint_model_args[k]
++    if 'norm_type' in checkpoint_model_args:
++        model_args['norm_type'] = checkpoint_model_args['norm_type']
++    for k in ['attn_alpha_init_value', 'ffn_alpha_init_value', 'dec_alpha_init_value']:
++        if k in checkpoint_model_args:
++            model_args[k] = checkpoint_model_args[k]
+     # create the model
+     gptconf = GPTConfig(**model_args)
+     model = GPT(gptconf)

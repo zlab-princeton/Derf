@@ -1,0 +1,27 @@
+diff --git a/train.py b/train.py
+index c49b878..763b5ad 100644
+--- a/train.py
++++ b/train.py
+@@ -202,6 +202,22 @@ class SequenceLightningModule(pl.LightningModule):
+             self.model = utils.instantiate(registry.model, model_hparams)
+         else:
+             self.model = utils.instantiate(registry.model, self.hparams.model)
++        
++        model_name = self.hparams.model.get("_name_", "")
++        
++        if "caduceus" in model_name.lower():
++            from dynamic_erf import convert_rmsnorm_to_derf 
++            from dynamic_tanh import convert_rmsnorm_to_dyt
++            self.model = convert_rmsnorm_to_derf(self.model)
++            # self.model = convert_rmsnorm_to_dyt(self.model)
++            # comment all to use original caduceus model with rmsnorm
++        elif "hyena" in model_name.lower():
++            from dynamic_erf import convert_ln_to_derf
++            from dynamic_tanh import convert_ln_to_dyt
++            self.model = convert_ln_to_derf(self.model)
++            # self.model = convert_ln_to_dyt(self.model)
++            # comment all to use original hyenaDNA model with layernorm
++        
+         if (name := self.hparams.train.post_init_hook['_name_']) is not None:
+             kwargs = self.hparams.train.post_init_hook.copy()
+             del kwargs['_name_']
