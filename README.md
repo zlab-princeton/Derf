@@ -4,12 +4,14 @@ This repository provides a modular PyTorch implementation of **Dynamic erf (Derf
 
 --- 
 
+**Dynamic erf (Derf)** is a simple point-wise function: $\mathrm{Derf}(x) = \mathrm{erf}(\alpha x + s)$, where $\alpha$ and $s$ are learnable scalars.  
+Derf is designed as a drop-in replacement for normalization layers in Transformers, and achieves stronger performance than LayerNorm, RMSNorm, and Dynamic Tanh across a wide range of modalities and tasks.
+
+
 <p align="center">
 <img src="figure/teaser.svg" width="60%">
 </p>
 
-**Dynamic erf (Derf)** is a simple point-wise function: $\mathrm{Derf}(x) = \mathrm{erf}(\alpha x + s)$, where $\alpha$ and $s$ are learnable scalars.  
-Derf is designed as a drop-in replacement for normalization layers in Transformers, and achieves stronger performance than LayerNorm, RMSNorm, and Dynamic Tanh across a wide range of modalities and tasks.
 
 ## Implementation
 We evaluate Derf across four **representative Transformer model families** and one other modern architecture, strictly **following their official implementations**. 
