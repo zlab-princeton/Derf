@@ -84,7 +84,7 @@ This project is released under the MIT license. Please see the [LICENSE](LICENSE
 ## Citation
 If you find this repository helpful, please consider citing:
 ```
-@misc{derf,
+@article{derf,
       title={Stronger Normalization-Free Transformers},
       author={Mingzhi Chen and Taiming Lu and Jiachen Zhu and Mingjie Sun and Zhuang Liu},
       year={2025},
