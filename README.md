@@ -1,6 +1,11 @@
 # Stronger Normalization-Free Transformers
 
-This repository provides a modular PyTorch implementation of **Dynamic erf (Derf)**
+This repository provides a modular PyTorch implementation of **Dynamic erf (Derf)**, from the following paper
+
+[Stronger Normalization-Free Transformers](https://arxiv.org/abs/2512.10938)  \
+[Mingzhi Chen](https://mingzhic.com/), [Taiming Lu](https://taiminglu.com/), [Jiachen Zhu](https://jiachenzhu.github.io), [Mingjie Sun](https://eric-mingjie.github.io/), and [Zhuang Liu](https://liuzhuang13.github.io) \
+Princeton, NYU, CMU [[`arXiv`](https://arxiv.org/abs/2512.10938)]
+
 
 --- 
 
