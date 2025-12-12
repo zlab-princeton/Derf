@@ -9,7 +9,7 @@ Derf is designed as a drop-in replacement for normalization layers in Transforme
 
 
 <p align="center">
-<img src="figure/teaser.svg" width="60%">
+<img src="figure/teaser.svg" width="80%">
 </p>
 
 
@@ -84,4 +84,13 @@ This project is released under the MIT license. Please see the [LICENSE](LICENSE
 ## Citation
 If you find this repository helpful, please consider citing:
 ```
+@misc{derf,
+      title={Stronger Normalization-Free Transformers},
+      author={Mingzhi Chen and Taiming Lu and Jiachen Zhu and Mingjie Sun and Zhuang Liu},
+      year={2025},
+      eprint={2512.10938},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2512.10938},
+}
 ```
