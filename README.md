@@ -9,7 +9,7 @@ Derf is designed as a drop-in replacement for normalization layers in Transforme
 
 
 <p align="center">
-<img src="figure/teaser.svg" width="80%">
+<img src="figure/teaser.svg" width="100%">
 </p>
 
 
