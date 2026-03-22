@@ -1,4 +1,4 @@
-# Stronger Normalization-Free Transformers
+# Stronger Normalization-Free Transformers (CVPR 2026)
 
 This repository provides a modular PyTorch implementation of **Dynamic erf (Derf)**, from the following paper
 
